@@ -1,4 +1,4 @@
-name: Build ZMK Firmware
+name: Build ZMK
 
 on:
   push:
@@ -8,19 +8,33 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build
+    container:
+      image: zmkfirmware/zmk-dev-env:stable
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install mikefarah/yq
-        run: |
-          sudo rm -f /usr/bin/yq /usr/local/bin/yq
-          sudo wget https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -O /usr/local/bin/yq
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
+      - name: Initialize West
+        run: west init -l config
 
-      - name: Build ZMK
-        uses: zmkfirmware/zmk/.github/actions/build-user-config@main
+      - name: Update West
+        run: west update
+
+      - name: Export Zephyr
+        run: west zephyr-export
+
+      - name: Build Left
+        run: west build -s zmk/app -d build/left -b nice_nano_v2 -- -DSHIELD=lily58_left
+
+      - name: Build Right
+        run: west build -s zmk/app -d build/right -b nice_nano_v2 -- -DSHIELD=lily58_right
+
+      - name: Archive Production Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            build/left/zephyr/zmk.uf2
+            build/right/zephyr/zmk.uf2
